@@ -6,11 +6,19 @@ module Mi = Mihome
 
 let my_log s =
     (Writer.write @@ Lazy.force Writer.stdout) s;
-    ignore @@ Writer.flushed @@ Lazy.force Writer.stdout
+    Writer.flushed @@ Lazy.force Writer.stdout
 
-let send_recv_data buf _r w =
-    Writer.write_bytes w buf;
-    ignore @@ Writer.flushed w
+let msg_processor packet =
+    let stdout = Lazy.force Writer.stdout in
+
+    Writer.write stdout "[*] Received packet:\n";
+    Writer.write stdout
+    @@ Mi.dump_packet
+    @@ Cstruct.of_string packet;
+
+    ignore
+    @@ Writer.flushed
+    @@ Lazy.force Writer.stdout
 
 let manage_socks ~addr ~port f =
     let sock = bind_any () in
@@ -39,6 +47,7 @@ let send_recv_one ~addr ~port payload =
                 if !stopped then return ()
                 else Deferred.all_unit [
                     Deferred.all_unit [
+                        my_log "[+] Sending...\n";
                         send_fn
                             (Socket.fd sock)
                             (Iobuf.of_bytes payload)
@@ -54,7 +63,7 @@ let send_recv_one ~addr ~port payload =
                                 (Socket.fd sock)
                                 (fun b _ ->
                                     let buf = Iobuf.to_string b in
-                                    my_log buf;
+                                    msg_processor buf;
                                     Bvar.broadcast recvd ();
                                     stopped := true;
 
@@ -67,17 +76,21 @@ let send_recv_one ~addr ~port payload =
                 ])
 
 let () =
-    let _packet = Mi.create_packet
-        ~unknown:0xffffffff
-        ~id:0xffffffff
-        ~stamp:0xffffffff
+    let packet = Mi.create_packet
+        ~unknown:0xffffffffl
+        ~id:0xffffffffl
+        ~stamp:0xffffffffl
         ~token:"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"
+        ()
     in
 
+    let _to_send = Mi.dump_packet packet in
+    (* my_log to_send; *)
+
     send_recv_one
-        ~addr:"127.0.0.1"
+        ~addr:"10.0.0.6"
         ~port:54321
-        @@ Bytes.of_string "hello world\n"
+        @@ Cstruct.to_bytes packet
     |> ignore;
 
     never_returns @@ Scheduler.go ()
