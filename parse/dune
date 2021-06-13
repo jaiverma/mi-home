@@ -1,4 +1,4 @@
 (executable
     (name pcap_parse)
-    (libraries pcap-format mmap ipaddr nocrypto)
+    (libraries pcap-format mmap ipaddr nocrypto hex)
     (preprocess (pps ppx_cstruct)))

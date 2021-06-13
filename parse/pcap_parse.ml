@@ -13,7 +13,7 @@ let load_pcap ~(buf: Cstruct.t) =
     | Some h -> Pcap.packets h body
     | None -> failwith "failed to parse pcap header"
 
-let read_packets filename =
+let read_packets ?(user_token=Cstruct.empty) filename =
     let data_iter =
         open_file filename
         |> (fun b -> load_pcap ~buf:b)
@@ -34,7 +34,13 @@ let read_packets filename =
             (fun _ ->
             let mi_len = Mi.get_mihome_len mi_data in
             let token = Mi.get_mihome_token mi_data in
-            Mi.update_token mac_src token;
+
+            if Cstruct.length user_token = 0 then
+                Mi.update_token mac_src token
+            else (
+                if Cstruct.length !Mi.token_key = 0 then
+                    Mi.token_key := user_token
+            );
 
             let payload =
                 match mi_len with
@@ -62,5 +68,12 @@ let read_packets filename =
 
 let () =
     let argv = Array.to_list Sys.argv in
-    if List.length argv <> 2 then Printf.printf "usage: %s <filename>\n" @@ List.nth argv 0
-    else ignore @@ read_packets @@ List.nth argv 1
+    if List.length argv < 2 then Printf.printf "usage: %s <filename>\n" @@ List.nth argv 0
+    else
+        let token = List.nth_opt argv 2 in
+        (match token with
+        | None -> read_packets @@ List.nth argv 1
+        | Some token ->
+            read_packets
+                ~user_token:(Hex.to_cstruct @@ `Hex token) @@ List.nth argv 1)
+        |> ignore
