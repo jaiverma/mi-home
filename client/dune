@@ -1,0 +1,4 @@
+(executable
+    (name client)
+    (libraries async core async_udp)
+    (preprocess (pps ppx_cstruct)))
