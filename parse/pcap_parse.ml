@@ -61,4 +61,6 @@ let read_packets filename =
     parse data_iter
 
 let () =
-    ignore @@ read_packets "/tmp/yolo.pcap"
+    let argv = Array.to_list Sys.argv in
+    if List.length argv <> 2 then Printf.printf "usage: %s <filename>\n" @@ List.nth argv 0
+    else ignore @@ read_packets @@ List.nth argv 1
