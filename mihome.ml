@@ -48,3 +48,28 @@ let decrypt_payload payload token =
     in
 
     plain
+
+let dump_packet packet =
+    Printf.printf "\tmagic  : 0x%04x\n"
+        @@ get_mihome_magic packet;
+    Printf.printf "\tlen    : 0x%04x\n"
+        @@ get_mihome_len packet;
+    Printf.printf "\tunknow : 0x%08x\n"
+        @@ (Int32.to_int
+        @@ get_mihome_unknown packet)
+        land 0xffffffff;
+    Printf.printf "\tid     : 0x%08x\n"
+        @@ (Int32.to_int
+        @@ get_mihome_id packet)
+        land 0xffffffff;
+    Printf.printf "\tstamp  : 0x%08x\n"
+        @@ (Int32.to_int
+        @@ get_mihome_stamp packet)
+        land 0xffffffff;
+    let token_str =
+        Cstruct.to_bytes @@ get_mihome_token packet
+        |> Bytes.to_seq
+        |> Seq.fold_left (fun init x ->
+            Printf.sprintf "%s%02x" init @@ int_of_char x) ""
+    in
+    Printf.printf "\ttoken  : %s\n" token_str

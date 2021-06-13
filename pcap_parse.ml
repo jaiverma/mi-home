@@ -46,6 +46,9 @@ let read_packets filename =
 
             Printf.printf "src: [%s] [%s] -> dst: [%s] [%s]\n"
                 mac_src ip_src mac_dst ip_dst;
+
+            Mi.dump_packet mi_data;
+
             (match (Cstruct.length payload) with
             | 0 -> ()
             | _ -> Printf.printf "%s\n" @@ Cstruct.to_string payload);
