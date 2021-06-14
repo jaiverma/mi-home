@@ -41,19 +41,13 @@ let send_recv_one ~addr ~port payload =
             ~addr
             ~port
             (fun ~sock ~addr ->
-                let stopped = ref false in
-                let recvd = Bvar.create () in
+                Deferred.all_unit [
+                    my_log "[+] Sending...\n";
 
-                if !stopped then return ()
-                else Deferred.all_unit [
-                    Deferred.all_unit [
-                        my_log "[+] Sending...\n";
-                        send_fn
-                            (Socket.fd sock)
-                            (Iobuf.of_bytes payload)
-                            addr;
-                        Bvar.wait recvd
-                    ];
+                    send_fn
+                        (Socket.fd sock)
+                        (Iobuf.of_bytes payload)
+                        addr;
 
                     Monitor.try_with
                         ~run:`Schedule
@@ -64,8 +58,6 @@ let send_recv_one ~addr ~port payload =
                                 (fun b _ ->
                                     let buf = Iobuf.to_string b in
                                     msg_processor buf;
-                                    Bvar.broadcast recvd ();
-                                    stopped := true;
 
                                     ignore
                                     @@ Fd.close
@@ -88,7 +80,7 @@ let () =
     (* my_log to_send; *)
 
     send_recv_one
-        ~addr:"10.0.0.6"
+        ~addr:"127.0.0.1"
         ~port:54321
         @@ Cstruct.to_bytes packet
     |> ignore;
