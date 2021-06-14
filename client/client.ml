@@ -41,31 +41,32 @@ let send_recv_one ~addr ~port payload =
             ~addr
             ~port
             (fun ~sock ~addr ->
-                Deferred.all_unit [
-                    my_log "[+] Sending...\n";
+                my_log "[+] Sending...\n"
 
-                    send_fn
-                        (Socket.fd sock)
-                        (Iobuf.of_bytes payload)
-                        addr;
+                >>= fun _ ->
+                send_fn
+                    (Socket.fd sock)
+                    (Iobuf.of_bytes payload)
+                    addr
 
-                    Monitor.try_with
-                        ~run:`Schedule
-                        ~rest:`Log
-                        (fun () ->
-                            recvfrom_loop
-                                (Socket.fd sock)
-                                (fun b _ ->
-                                    let buf = Iobuf.to_string b in
-                                    msg_processor buf;
+                >>= fun _ ->
+                Monitor.try_with
+                    ~run:`Schedule
+                    ~rest:`Log
+                    (fun () ->
+                        recvfrom_loop
+                            (Socket.fd sock)
+                            (fun b _ ->
+                                let buf = Iobuf.to_string b in
+                                msg_processor buf;
 
-                                    ignore
-                                    @@ Fd.close
-                                    @@ Socket.fd sock))
-                    >>| function
-                    | Ok (Closed | Stopped) -> ()
-                    | Error e -> raise e
-                ])
+                                ignore
+                                @@ Fd.close
+                                @@ Socket.fd sock))
+
+                >>| function
+                | Ok (Closed | Stopped) -> ()
+                | Error e -> raise e)
 
 let () =
     let packet = Mi.create_packet
