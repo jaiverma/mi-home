@@ -12,9 +12,18 @@ let msg_processor packet =
     let stdout = Lazy.force Writer.stdout in
 
     Writer.write stdout "[*] Received packet:\n";
-    Writer.write stdout
-    @@ Mi.dump_packet
-    @@ Cstruct.of_string packet;
+
+    Monitor.try_with (fun () ->
+        return
+        @@ Mi.dump_packet
+        @@ Cstruct.of_string packet)
+
+    >>| (function
+    | Ok p -> p
+    | Error _ -> "[-] failed to parse packet")
+
+    >>> fun p ->
+    Writer.write stdout p;
 
     ignore
     @@ Writer.flushed
@@ -81,7 +90,7 @@ let () =
     (* my_log to_send; *)
 
     send_recv_one
-        ~addr:"127.0.0.1"
+        ~addr:"10.0.0.9"
         ~port:54321
         @@ Cstruct.to_bytes packet
     |> ignore;
