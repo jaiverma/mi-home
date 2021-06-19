@@ -12,6 +12,39 @@ let load_config filename =
     | Ok s -> Hex.to_cstruct @@ `Hex s
     | Error _ -> raise_s @@ Sexp.of_string "(Failed to read config)"
 
+let msg_handler r =
+    let buf = Bytes.create 1024 in
+    Reader.read r buf
+
+    >>| (function
+    | `Eof -> raise_s @@ Sexp.of_string "(EOF...)"
+    | `Ok n -> String.init ~f:(fun i -> Bytes.get buf i) n)
+
+    >>= (fun cmd ->
+    let msg =
+        match cmd with
+        | "on" -> Msg.power_on
+        | "off" -> Msg.power_off
+        | _ -> raise_s @@ Sexp.of_string "(cmd not supported)"
+    in
+
+    Msg.send_recv_msg
+        ~addr:"10.0.0.4"
+        ~port:54321
+        msg)
+
+    >>| (fun _ -> ())
+
+let run () =
+    let host_and_port =
+        Tcp.Server.create
+            ~on_handler_error:`Raise
+            (Tcp.Where_to_listen.of_port 10001)
+            (fun _addr r _w -> msg_handler r)
+    in
+
+    ignore host_and_port
+
 let () =
     (* -- flow of turning on device
             1. send `hello` packet (`send_recv_one`)
@@ -33,7 +66,7 @@ let () =
 
     >>= (fun _ ->
     Msg.send_recv_msg
-        ~addr:"10.0.0.4"
+        ~addr:"10.0.0.2"
         ~port:54321
         Msg.power_off)
 
