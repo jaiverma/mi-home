@@ -20,20 +20,12 @@ let msg_handler r =
     | `Eof -> raise_s @@ Sexp.of_string "(EOF...)"
     | `Ok n -> String.init ~f:(fun i -> Bytes.get buf i) n)
 
-    >>= (fun cmd ->
-    let msg =
-        match cmd with
-        | "on" -> Msg.power_on
-        | "off" -> Msg.power_off
-        | _ -> raise_s @@ Sexp.of_string "(cmd not supported)"
-    in
-
-    Msg.send_recv_msg
-        ~addr:"10.0.0.4"
-        ~port:54321
-        msg)
-
-    >>| (fun _ -> ())
+    >>| (fun cmd ->
+    let send_msg_f = Msg.send_recv_msg ~addr:"10.0.0.2" ~port: 54321 in
+    match String.strip cmd with
+    | "on" -> ignore @@ send_msg_f Msg.power_on
+    | "off" -> ignore @@ send_msg_f Msg.power_off
+    | x -> ignore @@ Msg.my_log @@ sprintf "cmd: %s\n" x)
 
 let run () =
     let host_and_port =
@@ -64,12 +56,7 @@ let () =
     >>| (fun token ->
     Mi.token := token)
 
-    >>= (fun _ ->
-    Msg.send_recv_msg
-        ~addr:"10.0.0.2"
-        ~port:54321
-        Msg.power_off)
-
-    >>> (fun _ -> shutdown 0);
+    >>> (fun _ ->
+    run ());
 
     never_returns @@ Scheduler.go ()
