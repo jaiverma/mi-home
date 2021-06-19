@@ -8,21 +8,11 @@ let load_config filename =
     Reader.file_contents filename
     >>| fun str ->
     String.strip str)
-    >>= function
-    | Ok s -> return s
-    | Error _ ->
-        eprintf "[-] Failed to read config from file: %s\n" filename;
-        exit 0
+    >>| function
+    | Ok s -> Hex.to_cstruct @@ `Hex s
+    | Error _ -> raise_s @@ Sexp.of_string "(Failed to read config)"
 
 let () =
-    let _packet = Mi.create_packet
-        ~unknown:0xffffffffl
-        ~id:0xffffffffl
-        ~stamp:0xffffffffl
-        ~token:"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"
-        ()
-    in
-
     (* -- flow of turning on device
             1. send `hello` packet (`send_recv_one`)
             2. parse `hello` response to retrieve `stamp` and `id`
@@ -31,19 +21,22 @@ let () =
             5. calculate MD5 has and put it in `token` field
             6. `send_recv_one`                                            -- *)
 
-    Mi.token := Cstruct.of_string
-        "\x00\xb2\xa2\x28\x54\x6c\x57\xdf\x33\x6b\xbc\xe4\x44\x39\xe4\xaf";
+    let token_path =
+        match Sys.getenv "MITOKEN_PATH" with
+        | Some f -> f
+        | None -> raise_s @@ Sexp.of_string "(MITOKEN_PATH is not set!)"
+    in
 
-    let turn_on_packet = Msg.create_msg Msg.power_on () in
-    Msg.my_log
-    @@ Mi.dump_packet
-    @@ turn_on_packet ~id:0x101dbfd4l ~stamp:0x0000433cl
-    |> ignore;
+    load_config token_path
+    >>| (fun token ->
+    Mi.token := token)
 
-    Msg.send_recv_one
-        ~addr:"10.0.0.9"
+    >>= (fun _ ->
+    Msg.send_recv_msg
+        ~addr:"10.0.0.4"
         ~port:54321
-        @@ Cstruct.to_bytes @@ turn_on_packet ~id:0x101dbfd4l ~stamp:0x0000433cl
-    |> ignore;
+        Msg.power_off)
+
+    >>> (fun _ -> shutdown 0);
 
     never_returns @@ Scheduler.go ()

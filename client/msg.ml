@@ -66,7 +66,7 @@ let my_log s =
     (Writer.write @@ Lazy.force Writer.stdout) s;
     Writer.flushed @@ Lazy.force Writer.stdout
 
-let msg_processor packet out =
+let msg_processor packet =
     let stdout = Lazy.force Writer.stdout in
 
     Writer.write stdout "[*] Received packet:\n";
@@ -100,7 +100,7 @@ let manage_socks ~addr ~port f =
             in
             f ~sock ~addr)
 
-let send_recv_one ~addr ~port payload =
+let send_recv_one ~addr ~port payload ret =
     match sendto () with
     | Error _ -> return ()
     | Ok send_fn ->
@@ -125,6 +125,7 @@ let send_recv_one ~addr ~port payload =
                             (Socket.fd sock)
                             (fun b _ ->
                                 let buf = Iobuf.to_string b in
+                                ret := Cstruct.of_string buf;
                                 msg_processor buf;
 
                                 ignore
@@ -135,5 +136,37 @@ let send_recv_one ~addr ~port payload =
                 | Ok (Closed | Stopped) -> ()
                 | Error e -> raise e)
 
-let send_recv_packet _packet = ()
-    
+let send_recv_msg ~addr ~port msg =
+    let mut_recv_data = ref Cstruct.empty in
+
+    (* send hello packet *)
+    let hello =
+        Cstruct.to_bytes
+        @@ Mi.create_packet
+            ~unknown:0xffffffffl
+            ~id:0xffffffffl
+            ~stamp:0xffffffffl
+            ~token:"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"
+            ()
+    in
+
+    send_recv_one ~addr ~port hello mut_recv_data
+    >>= (fun _ ->
+
+    (* parse reponse *)
+    let id = Mi.get_mihome_id !mut_recv_data in
+    let stamp =
+        Int32.of_int_exn
+        @@ (Int32.to_int_exn @@ Mi.get_mihome_stamp !mut_recv_data) + 1 in
+
+    (* create new message *)
+    let msg =
+        Cstruct.to_bytes
+        @@ create_msg msg ~id ~stamp () in
+
+    (* send message *)
+    send_recv_one ~addr ~port msg mut_recv_data)
+
+    >>| fun _ ->
+
+    !mut_recv_data
