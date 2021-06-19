@@ -19,6 +19,8 @@ let read_packets ?(user_token=Cstruct.empty) filename =
         |> (fun b -> load_pcap ~buf:b)
     in
 
+    let cnt = ref 0 in
+
     let rec parse iterator =
         match (iterator ()) with
         | Some (_hdr, eth) -> (
@@ -57,7 +59,11 @@ let read_packets ?(user_token=Cstruct.empty) filename =
 
             (match (Cstruct.length payload) with
             | 0 -> ()
-            | _ -> Printf.printf "%s\n" @@ Cstruct.to_string payload);
+            | _ ->
+                Printf.printf "%s\n" @@ Cstruct.to_string payload;
+                let filename = Printf.sprintf "/tmp/%d" !cnt in
+                cnt:= !cnt + 1;
+                Utils.dump_to_file ~filename @@ Cstruct.to_string payload);
 
             parse iterator))
 

@@ -6,6 +6,7 @@ let unpad_pkcs7 ?(blocksize=16) data =
 
         if last > len then data
         else (
+            Printf.printf "data: %s\n" @@ Cstruct.to_string data;
             let pad =
                 Cstruct.sub data (len - last) last
                 |> Cstruct.filter (fun c -> int_of_char c = last)
@@ -25,3 +26,8 @@ let print_byte_data b =
     |> List.map (fun x -> x |> Printf.sprintf "%02x")
     |> String.concat " "
     |> Printf.printf "%s\n"
+
+let dump_to_file ~filename data =
+    let oc = open_out filename in
+    Printf.fprintf oc "%s" data;
+    close_out oc

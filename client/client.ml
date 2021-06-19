@@ -1,84 +1,21 @@
 open Core
 open Async
-open Async_udp
 
 module Mi = Mihome
 
-let my_log s =
-    (Writer.write @@ Lazy.force Writer.stdout) s;
-    Writer.flushed @@ Lazy.force Writer.stdout
-
-let msg_processor packet =
-    let stdout = Lazy.force Writer.stdout in
-
-    Writer.write stdout "[*] Received packet:\n";
-
+let load_config filename =
     Monitor.try_with (fun () ->
-        return
-        @@ Mi.dump_packet
-        @@ Cstruct.of_string packet)
-
-    >>| (function
-    | Ok p -> p
-    | Error _ -> "[-] failed to parse packet")
-
-    >>> fun p ->
-    Writer.write stdout p;
-
-    ignore
-    @@ Writer.flushed
-    @@ Lazy.force Writer.stdout
-
-let manage_socks ~addr ~port f =
-    let sock = bind_any () in
-    Monitor.protect
-        ~run:`Schedule
-        ~finally:(fun () -> Fd.close @@ Socket.fd sock)
-        (fun () ->
-            let `Inet (_host, _port) = Unix.Socket.getsockname sock in
-            let addr =
-                Socket.Address.Inet.create ~port
-                @@ Unix.Inet_addr.of_string addr
-            in
-            f ~sock ~addr)
-
-let send_recv_one ~addr ~port payload =
-    match sendto () with
-    | Error _ -> return ()
-    | Ok send_fn ->
-        manage_socks
-            ~addr
-            ~port
-            (fun ~sock ~addr ->
-                my_log "[+] Sending...\n"
-
-                >>= fun _ ->
-                send_fn
-                    (Socket.fd sock)
-                    (Iobuf.of_bytes payload)
-                    addr
-
-                >>= fun _ ->
-                Monitor.try_with
-                    ~run:`Schedule
-                    ~rest:`Log
-                    (fun () ->
-                        recvfrom_loop
-                            (Socket.fd sock)
-                            (fun b _ ->
-                                let buf = Iobuf.to_string b in
-                                msg_processor buf;
-
-                                ignore
-                                @@ Fd.close
-                                @@ Socket.fd sock))
-
-                >>| function
-                | Ok (Closed | Stopped) -> ()
-                | Error e -> raise e)
+    Reader.file_contents filename
+    >>| fun str ->
+    String.strip str)
+    >>= function
+    | Ok s -> return s
+    | Error _ ->
+        eprintf "[-] Failed to read config from file: %s\n" filename;
+        exit 0
 
 let () =
-    let packet = Mi.create_packet
+    let _packet = Mi.create_packet
         ~unknown:0xffffffffl
         ~id:0xffffffffl
         ~stamp:0xffffffffl
@@ -86,13 +23,27 @@ let () =
         ()
     in
 
-    let _to_send = Mi.dump_packet packet in
-    (* my_log to_send; *)
+    (* -- flow of turning on device
+            1. send `hello` packet (`send_recv_one`)
+            2. parse `hello` response to retrieve `stamp` and `id`
+            3. create new packet and put in `stamp` and `id` from prev packet
+            4. create and encrypt payload with token
+            5. calculate MD5 has and put it in `token` field
+            6. `send_recv_one`                                            -- *)
 
-    send_recv_one
+    Mi.token := Cstruct.of_string
+        "\x00\xb2\xa2\x28\x54\x6c\x57\xdf\x33\x6b\xbc\xe4\x44\x39\xe4\xaf";
+
+    let turn_on_packet = Msg.create_msg Msg.power_on () in
+    Msg.my_log
+    @@ Mi.dump_packet
+    @@ turn_on_packet ~id:0x101dbfd4l ~stamp:0x0000433cl
+    |> ignore;
+
+    Msg.send_recv_one
         ~addr:"10.0.0.9"
         ~port:54321
-        @@ Cstruct.to_bytes packet
+        @@ Cstruct.to_bytes @@ turn_on_packet ~id:0x101dbfd4l ~stamp:0x0000433cl
     |> ignore;
 
     never_returns @@ Scheduler.go ()
