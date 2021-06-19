@@ -3,16 +3,7 @@ open Async
 
 module Mi = Mihome
 
-let load_config filename =
-    Monitor.try_with (fun () ->
-    Reader.file_contents filename
-    >>| fun str ->
-    String.strip str)
-    >>| function
-    | Ok s -> Hex.to_cstruct @@ `Hex s
-    | Error _ -> raise_s @@ Sexp.of_string "(Failed to read config)"
-
-let msg_handler r =
+let msg_handler ~f r =
     let buf = Bytes.create 1024 in
     Reader.read r buf
 
@@ -21,18 +12,17 @@ let msg_handler r =
     | `Ok n -> String.init ~f:(fun i -> Bytes.get buf i) n)
 
     >>| (fun cmd ->
-    let send_msg_f = Msg.send_recv_msg ~addr:"10.0.0.2" ~port: 54321 in
     match String.strip cmd with
-    | "on" -> ignore @@ send_msg_f Msg.power_on
-    | "off" -> ignore @@ send_msg_f Msg.power_off
+    | "on" -> ignore @@ f Msg.power_on
+    | "off" -> ignore @@ f Msg.power_off
     | x -> ignore @@ Msg.my_log @@ sprintf "cmd: %s\n" x)
 
-let run () =
+let run ~f () =
     let host_and_port =
         Tcp.Server.create
             ~on_handler_error:`Raise
             (Tcp.Where_to_listen.of_port 10001)
-            (fun _addr r _w -> msg_handler r)
+            (fun _addr r _w -> msg_handler ~f r)
     in
 
     ignore host_and_port
@@ -46,17 +36,30 @@ let () =
             5. calculate MD5 has and put it in `token` field
             6. `send_recv_one`                                            -- *)
 
-    let token_path =
-        match Sys.getenv "MITOKEN_PATH" with
+    let ip = ref "" in
+    let port = ref 0 in
+
+    let config_path =
+        match Sys.getenv "MICONF_PATH" with
         | Some f -> f
-        | None -> raise_s @@ Sexp.of_string "(MITOKEN_PATH is not set!)"
+        | None -> raise_s @@ Sexp.of_string "(MICONF_PATH is not set!)"
     in
 
-    load_config token_path
-    >>| (fun token ->
-    Mi.token := token)
+    Util.load_config config_path
+    >>| (fun conf ->
+
+    List.iter conf ~f:(fun (k, v) ->
+        match k with
+        | "token" -> Mi.token := Hex.to_cstruct @@ `Hex v
+        | "ip" -> ip := v
+        | "port" -> port := int_of_string v
+        | _ -> ());
+
+    if Cstruct.is_empty !Mi.token then raise_s @@ Sexp.of_string "(token not set!)";
+    if String.is_empty !ip then raise_s @@ Sexp.of_string "(ip not set!)";
+    if !port = 0 then raise_s @@ Sexp.of_string "(port not set!)";)
 
     >>> (fun _ ->
-    run ());
+    run () ~f:(Msg.send_recv_msg ~addr:!ip ~port:!port));
 
     never_returns @@ Scheduler.go ()
