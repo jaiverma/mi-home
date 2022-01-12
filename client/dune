@@ -1,4 +1,5 @@
 (executable
-    (name client)
-    (libraries async core async_udp nocrypto yojson hex)
-    (preprocess (pps ppx_cstruct)))
+ (name client)
+ (libraries async core async_udp nocrypto yojson hex)
+ (preprocess
+  (pps ppx_cstruct)))
