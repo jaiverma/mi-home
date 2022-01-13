@@ -43,6 +43,51 @@ let get_aqi =
     ]
 ;;
 
+let get_temperature =
+  `Assoc
+    [ "id", `Int 1
+    ; "method", `String "get_properties"
+    ; ( "params"
+      , `List [ `Assoc [ "did", `String "temperature"; "siid", `Int 3; "piid", `Int 8 ] ]
+      )
+    ]
+;;
+
+let get_humidity =
+  `Assoc
+    [ "id", `Int 1
+    ; "method", `String "get_properties"
+    ; ( "params"
+      , `List [ `Assoc [ "did", `String "humidity"; "siid", `Int 3; "piid", `Int 7 ] ] )
+    ]
+;;
+
+let get_fan_level =
+  `Assoc
+    [ "id", `Int 1
+    ; "method", `String "get_properties"
+    ; ( "params"
+      , `List [ `Assoc [ "did", `String "fan_level"; "siid", `Int 2; "piid", `Int 4 ] ] )
+    ]
+;;
+
+let get_power =
+  `Assoc
+    [ "id", `Int 1
+    ; "method", `String "get_properties"
+    ; ( "params"
+      , `List [ `Assoc [ "did", `String "power"; "siid", `Int 2; "piid", `Int 2 ] ] )
+    ]
+;;
+
+let get_mode =
+  `Assoc
+    [ "id", `Int 1
+    ; "method", `String "get_properties"
+    ; "params", `List [ `Assoc [ "did", `String "mode"; "siid", `Int 2; "piid", `Int 5 ] ]
+    ]
+;;
+
 let create_msg msg ~id ~stamp () =
   let tmp =
     "{\"id\": 1, \"method\": \"set_properties\", \"params\": [{\"did\": \"power\", \

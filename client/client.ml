@@ -13,6 +13,11 @@ let msg_handler ~f r =
   | "on" -> ignore @@ f Msg.power_on
   | "off" -> ignore @@ f Msg.power_off
   | "get_aqi" -> ignore @@ f Msg.get_aqi
+  | "get_temperature" -> ignore @@ f Msg.get_temperature
+  | "get_humidity" -> ignore @@ f Msg.get_humidity
+  | "get_fan_level" -> ignore @@ f Msg.get_fan_level
+  | "get_power" -> ignore @@ f Msg.get_power
+  | "get_mode" -> ignore @@ f Msg.get_mode
   | x -> ignore @@ Msg.my_log @@ sprintf "cmd: %s\n" x
 ;;
 
