@@ -35,6 +35,14 @@ let power_off =
     ]
 ;;
 
+let get_aqi =
+  `Assoc
+    [ "id", `Int 1
+    ; "method", `String "get_properties"
+    ; "params", `List [ `Assoc [ "did", `String "aqi"; "siid", `Int 3; "piid", `Int 6 ] ]
+    ]
+;;
+
 let create_msg msg ~id ~stamp () =
   let tmp =
     "{\"id\": 1, \"method\": \"set_properties\", \"params\": [{\"did\": \"power\", \
@@ -66,10 +74,11 @@ let my_log s =
 let msg_processor packet =
   let stdout = Lazy.force Writer.stdout in
   Writer.write stdout "[*] Received packet:\n";
-  Monitor.try_with (fun () -> return @@ Mi.dump_packet @@ Cstruct.of_string packet)
+  Monitor.try_with (fun () ->
+      return @@ Mi.dump_packet (Cstruct.of_string packet) !Mi.token)
   >>| (function
         | Ok p -> p
-        | Error _ -> "[-] failed to parse packet")
+        | Error _ -> "[-] failed to parse packet\n")
   >>> fun p ->
   Writer.write stdout p;
   ignore @@ Writer.flushed @@ Lazy.force Writer.stdout

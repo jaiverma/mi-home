@@ -55,7 +55,18 @@ let encrypt_payload payload ~token =
   ciphertext
 ;;
 
-let dump_packet packet =
+let decrypt_payload payload token =
+  let open Nocrypto.Cipher_block in
+  let open Nocrypto.Hash in
+  let key = token |> MD5.digest in
+  let iv = Cstruct.append key token |> MD5.digest in
+  let plain =
+    AES.CBC.decrypt ~key:(AES.CBC.of_secret key) ~iv payload |> Util.unpad_pkcs7
+  in
+  plain
+;;
+
+let dump_packet packet token =
   let ret = "" in
   let ret = ret ^ sprintf "\tmagic   : 0x%04x\n" @@ get_mihome_magic packet in
   let ret = ret ^ sprintf "\tlen     : 0x%04x\n" @@ get_mihome_len packet in
@@ -80,5 +91,11 @@ let dump_packet packet =
     |> List.fold_left ~f:(fun init x -> sprintf "%s%02x" init @@ int_of_char x) ~init:""
   in
   let ret = ret ^ sprintf "\ttoken   : %s\n" token_str in
-  ret
+  let payload = Cstruct.shift packet sizeof_mihome in
+  if Cstruct.length payload > 0
+  then (
+    let ret = ret ^ Cstruct.to_string @@ decrypt_payload payload token in
+    let ret = ret ^ "\n" in
+    ret)
+  else ret
 ;;

@@ -12,6 +12,7 @@ let msg_handler ~f r =
   match String.strip cmd with
   | "on" -> ignore @@ f Msg.power_on
   | "off" -> ignore @@ f Msg.power_off
+  | "get_aqi" -> ignore @@ f Msg.get_aqi
   | x -> ignore @@ Msg.my_log @@ sprintf "cmd: %s\n" x
 ;;
 
